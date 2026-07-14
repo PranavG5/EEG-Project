@@ -54,12 +54,20 @@ IMAGERY_EVENT_LABELS: dict[str, str] = {"T1": "left_fist", "T2": "right_fist"}
 
 # --- Loading ---------------------------------------------------------------
 
-def load_raw(subject: int = 1, runs: Sequence[int] = (4,)) -> BaseRaw:
-    """Download (if needed) and load one subject's EEG runs as a single Raw.
+def load_raw(
+    subject: int = 1,
+    runs: Sequence[int] = (4,),
+    edf_paths: Sequence[str] | None = None,
+) -> BaseRaw:
+    """Load one subject's EEG runs as a single Raw, downloading if needed.
 
-    Uses MNE's ``eegbci.load_data`` fetcher, so no manual download is required;
-    files are cached under ``~/mne_data`` on first use. Note the parameter is
-    ``subjects`` (plural) in MNE's API even for a single subject.
+    By default uses MNE's ``eegbci.load_data`` fetcher, so no manual download is
+    required; files are cached under ``~/mne_data`` on first use. Note the
+    parameter is ``subjects`` (plural) in MNE's API even for a single subject.
+
+    If ``edf_paths`` is given, those local EDF files are loaded directly and the
+    downloader is skipped — useful when the PhysioNet host is unreachable (e.g.
+    a restricted network) and the files have been supplied out of band.
 
     Channel names in the raw EDF files carry BCI2000 quirks (trailing dots,
     e.g. ``Fc5.``). ``eegbci.standardize`` rewrites them to the canonical
@@ -69,17 +77,22 @@ def load_raw(subject: int = 1, runs: Sequence[int] = (4,)) -> BaseRaw:
     Parameters
     ----------
     subject
-        Subject id, 1-109.
+        Subject id, 1-109. Ignored when ``edf_paths`` is provided.
     runs
         Run numbers to load and concatenate. Runs 4, 8, 12 are the imagined
-        left/right fist runs.
+        left/right fist runs. Ignored when ``edf_paths`` is provided.
+    edf_paths
+        Optional explicit list of local ``.edf`` files to load instead of
+        fetching from PhysioNet.
 
     Returns
     -------
     Raw
         The concatenated raw recording with a standard 10-05 montage set.
     """
-    paths = eegbci.load_data(subjects=subject, runs=list(runs))
+    paths = list(edf_paths) if edf_paths is not None else eegbci.load_data(
+        subjects=subject, runs=list(runs)
+    )
     raws = [mne.io.read_raw_edf(p, preload=True) for p in paths]
     raw = mne.concatenate_raws(raws)
 
@@ -271,10 +284,19 @@ def plot_events(raw: BaseRaw, out_path: str) -> str:
 
 def main() -> None:
     """Run milestone 1 end-to-end for subject 1, run 4, and report results."""
+    import os
+
     figures_dir = "results/figures"
 
+    # Prefer a locally supplied EDF (e.g. when PhysioNet is unreachable);
+    # otherwise fall back to MNE's downloader.
+    local_edf = "data/S001R04.edf"
+    edf_paths = [local_edf] if os.path.exists(local_edf) else None
+
     print("Loading subject 1, run 4 (imagined left/right fist)...")
-    raw = load_raw(subject=1, runs=(4,))
+    if edf_paths:
+        print(f"  using local file: {local_edf}")
+    raw = load_raw(subject=1, runs=(4,), edf_paths=edf_paths)
     print(f"  loaded: {len(raw.ch_names)} channels, "
           f"{raw.n_times} samples at {raw.info['sfreq']:.0f} Hz "
           f"({raw.times[-1]:.1f} s)")
