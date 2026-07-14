@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import mne
 import numpy as np
+from mne.decoding import CSP
 
 
 def band_power(
@@ -61,3 +62,52 @@ def band_power(
     # Average power across the band -> (n_trials, n_channels), then log.
     band = psds.mean(axis=2)
     return np.log(band)
+
+
+def make_csp(n_components: int = 6) -> CSP:
+    """Build an (unfitted) Common Spatial Patterns transformer.
+
+    What CSP does
+    -------------
+    CSP learns a set of spatial filters (weighted channel combinations) that
+    maximise the *variance ratio* between the two classes. It solves the
+    generalised eigenproblem of the two class-covariance matrices
+    ``C_left w = lambda C_right w``: the top eigenvectors give projections whose
+    variance is large for left-hand imagery and small for right-hand imagery,
+    and the bottom eigenvectors give the reverse. Because band power *is*
+    variance for a band-passed signal, "maximise the variance ratio" is exactly
+    "find the spatial pattern where left/right mu-beta power differs most" — CSP
+    is a data-driven, supervised version of the C3-vs-C4 contrast that band
+    power exploits by hand. ``n_components`` keeps that many most-discriminative
+    filters (the extreme eigenvectors, half favouring each class).
+
+    The features it emits (``log=True``, ``transform_into='average_power'``) are
+    the log-variance of each spatially-filtered signal per trial — a compact
+    ``n_components``-dimensional vector that feeds a linear classifier well.
+
+    Because CSP is *supervised* (it uses the labels to build the filters), it
+    must be fit on training data only, inside cross-validation — hence it is
+    returned as an sklearn-compatible transformer to drop into a Pipeline, not
+    applied to the whole dataset up front.
+
+    ``reg='ledoit_wolf'`` shrinks the per-class covariance estimates, which is
+    essential when there are far more channels (64) than trials so the empirical
+    covariance would otherwise be rank-deficient.
+
+    Parameters
+    ----------
+    n_components
+        Number of CSP filters (features) to retain.
+
+    Returns
+    -------
+    CSP
+        An unfitted ``mne.decoding.CSP`` transformer operating on epoched data
+        of shape (n_trials, n_channels, n_times).
+    """
+    return CSP(
+        n_components=n_components,
+        reg="ledoit_wolf",
+        log=True,
+        norm_trace=False,
+    )

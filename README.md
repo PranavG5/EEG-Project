@@ -36,8 +36,11 @@ runs/subjects are added._
 | Method | Subject-dependent acc | Cross-subject acc |
 |---|---|---|
 | Band power + LDA | 0.73¹ | — |
-| CSP + LDA | — | — |
+| CSP + LDA | 0.73¹ | — |
 | CSP + SVM | — | — |
 | EEGNet | — | — |
 
 ¹ Subject 1, run 4 only (15 trials, majority-class chance ≈ 0.53), 5-fold CV.
+With only 15 trials the two classical methods are statistically
+indistinguishable here; the comparison becomes meaningful once more
+runs/subjects are added.

@@ -13,6 +13,8 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from features import make_csp
+
 
 def make_lda() -> Pipeline:
     """Build a standardise -> shrinkage-LDA pipeline.
@@ -35,5 +37,36 @@ def make_lda() -> Pipeline:
     """
     return make_pipeline(
         StandardScaler(),
+        LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto"),
+    )
+
+
+def make_csp_lda(n_components: int = 6) -> Pipeline:
+    """Build the reference BCI pipeline: CSP spatial filtering -> shrinkage LDA.
+
+    This ``CSP + LDA`` combination is *the* standard baseline in motor-imagery
+    BCI. CSP learns supervised spatial filters that maximise the left/right
+    variance (band-power) contrast and emits compact log-variance features; LDA
+    draws the linear boundary between the two classes in that space.
+
+    The whole thing is one estimator so that, under cross-validation, CSP is
+    re-fit on each training fold only — fitting CSP on all trials first would
+    leak label information from the test fold and inflate accuracy.
+
+    Input is 3-D epoched data of shape (n_trials, n_channels, n_times); CSP
+    reduces it to (n_trials, n_components) before the classifier.
+
+    Parameters
+    ----------
+    n_components
+        Number of CSP components (features) to retain.
+
+    Returns
+    -------
+    Pipeline
+        An unfitted scikit-learn pipeline (CSP -> LDA).
+    """
+    return make_pipeline(
+        make_csp(n_components=n_components),
         LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto"),
     )
