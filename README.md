@@ -28,11 +28,16 @@ Raw EDF -> filter (8-30Hz) -> re-reference -> epoch -> extract features
 (subject-dependent + cross-subject).
 
 ## Results
-_(to be filled in as milestones complete)_
+_Filled in as milestones complete. Current numbers are preliminary: a single
+subject (S001), single run (run 4), 15 trials, 5-fold stratified CV — so
+accuracies are above chance but high-variance. They will firm up once more
+runs/subjects are added._
 
 | Method | Subject-dependent acc | Cross-subject acc |
 |---|---|---|
-| Band power + LDA | — | — |
+| Band power + LDA | 0.73¹ | — |
 | CSP + LDA | — | — |
 | CSP + SVM | — | — |
 | EEGNet | — | — |
+
+¹ Subject 1, run 4 only (15 trials, majority-class chance ≈ 0.53), 5-fold CV.
