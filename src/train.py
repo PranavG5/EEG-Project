@@ -14,6 +14,7 @@ cross-subject evaluation.
 
 from __future__ import annotations
 
+import glob
 import os
 
 import mne
@@ -25,7 +26,27 @@ from models import make_csp_lda, make_lda
 from preprocess import load_raw, make_epochs, preprocess_raw
 
 FIGURES_DIR = "results/figures"
-LOCAL_EDF = "data/S001R04.edf"
+DATA_DIR = "data"
+# Subject 1's imagined left/right-fist runs. Any of these present under data/
+# are loaded and concatenated, so dropping in more runs raises the trial count
+# with no code change.
+SUBJECT = 1
+IMAGERY_RUNS = (4, 8, 12)
+
+
+def find_local_edfs(subject: int, runs) -> list[str]:
+    """Return existing local EDF paths for the given subject/runs, if any.
+
+    Looks for files named like ``S001R04.edf`` under ``data/`` (case-insensitive
+    on the extension). Returns an empty list if none are present, in which case
+    the caller falls back to MNE's downloader.
+    """
+    found = []
+    for run in runs:
+        matches = glob.glob(os.path.join(DATA_DIR, f"S{subject:03d}R{run:02d}.edf"))
+        matches += glob.glob(os.path.join(DATA_DIR, f"S{subject:03d}R{run:02d}.EDF"))
+        found.extend(sorted(set(matches)))
+    return found
 
 
 def epochs_to_xy(epochs) -> tuple[np.ndarray, np.ndarray, list[str]]:
@@ -52,9 +73,14 @@ def main() -> None:
     os.makedirs(FIGURES_DIR, exist_ok=True)
 
     # --- Data: load, preprocess, epoch -------------------------------------
-    edf_paths = [LOCAL_EDF] if os.path.exists(LOCAL_EDF) else None
-    print("Loading subject 1, run 4 (imagined left/right fist)...")
-    raw = load_raw(subject=1, runs=(4,), edf_paths=edf_paths)
+    edf_paths = find_local_edfs(SUBJECT, IMAGERY_RUNS) or None
+    if edf_paths:
+        print(f"Loading subject {SUBJECT} from {len(edf_paths)} local run(s): "
+              f"{', '.join(os.path.basename(p) for p in edf_paths)}")
+    else:
+        print(f"Loading subject {SUBJECT}, runs {IMAGERY_RUNS} via MNE "
+              "downloader...")
+    raw = load_raw(subject=SUBJECT, runs=IMAGERY_RUNS, edf_paths=edf_paths)
     preprocess_raw(raw)
     epochs = make_epochs(raw)
 
