@@ -120,9 +120,11 @@ def main() -> None:
     )
 
     # --- Summary comparison ------------------------------------------------
-    print("\n=== Subject-dependent accuracy comparison (S001 run 4) ===")
+    print(f"\n=== Subject-dependent accuracy comparison "
+          f"(S{SUBJECT:03d}, {len(y)} trials) ===")
     for name, res in results.items():
-        print(f"  {name:<16s}: {res['accuracy']:.3f}")
+        print(f"  {name:<16s}: {res['accuracy']:.3f} "
+              f"± {res['fold_accuracies'].std():.3f}")
 
     return results
 

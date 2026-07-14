@@ -28,19 +28,21 @@ Raw EDF -> filter (8-30Hz) -> re-reference -> epoch -> extract features
 (subject-dependent + cross-subject).
 
 ## Results
-_Filled in as milestones complete. Current numbers are preliminary: a single
-subject (S001), single run (run 4), 15 trials, 5-fold stratified CV — so
-accuracies are above chance but high-variance. They will firm up once more
-runs/subjects are added._
+_Filled in as milestones complete. Subject-dependent numbers below are for
+subject 1 across its three imagery runs (4, 8, 12), 45 trials, 5-fold
+stratified cross-validation. Cross-subject columns are still to come._
 
 | Method | Subject-dependent acc | Cross-subject acc |
 |---|---|---|
 | Band power + LDA | 0.73¹ | — |
-| CSP + LDA | 0.73¹ | — |
+| CSP + LDA | 0.60¹ | — |
 | CSP + SVM | — | — |
 | EEGNet | — | — |
 
-¹ Subject 1, run 4 only (15 trials, majority-class chance ≈ 0.53), 5-fold CV.
-With only 15 trials the two classical methods are statistically
-indistinguishable here; the comparison becomes meaningful once more
-runs/subjects are added.
+¹ Subject 1, runs 4+8+12 (45 trials, majority-class chance ≈ 0.51), 5-fold
+CV, mean ± 0.09 across folds. Note band power currently edges out CSP here:
+concatenating three separately-recorded runs introduces session-to-session
+covariance shifts that CSP's global spatial filters are sensitive to, whereas
+per-channel band power is more robust to them. Whether CSP recovers its usual
+edge with per-run or multi-subject training is worth checking as more data is
+added.
