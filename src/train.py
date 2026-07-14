@@ -20,9 +20,9 @@ import os
 import mne
 import numpy as np
 
-from evaluate import evaluate_subject_dependent
+from evaluate import evaluate_subject_dependent, plot_accuracy_comparison
 from features import band_power
-from models import make_csp_lda, make_lda
+from models import make_csp_lda, make_csp_svm, make_lda
 from preprocess import load_raw, make_epochs, preprocess_raw
 
 FIGURES_DIR = "results/figures"
@@ -119,12 +119,38 @@ def main() -> None:
         out_path=f"{FIGURES_DIR}/milestone3_confusion_csp_lda.png",
     )
 
-    # --- Summary comparison ------------------------------------------------
+    # --- Method 3: CSP + RBF SVM -------------------------------------------
+    results["csp_svm"] = evaluate_subject_dependent(
+        X_epochs,
+        y,
+        make_csp_svm(n_components=6),
+        class_names=class_names,
+        method_name="CSP + SVM (RBF)",
+        n_splits=5,
+        out_path=f"{FIGURES_DIR}/milestone4_confusion_csp_svm.png",
+    )
+
+    # --- Summary comparison + bar chart ------------------------------------
+    display_names = {
+        "bandpower_lda": "Band power\n+ LDA",
+        "csp_lda": "CSP + LDA",
+        "csp_svm": "CSP + SVM",
+    }
     print(f"\n=== Subject-dependent accuracy comparison "
           f"(S{SUBJECT:03d}, {len(y)} trials) ===")
     for name, res in results.items():
         print(f"  {name:<16s}: {res['accuracy']:.3f} "
               f"± {res['fold_accuracies'].std():.3f}")
+
+    chance = max(np.bincount(y)) / len(y)
+    chart = plot_accuracy_comparison(
+        {display_names.get(k, k): v for k, v in results.items()},
+        out_path=f"{FIGURES_DIR}/accuracy_comparison_subject_dependent.png",
+        chance=chance,
+        title=f"Subject-dependent accuracy (S{SUBJECT:03d}, {len(y)} trials, "
+              "5-fold CV)",
+    )
+    print(f"Saved accuracy comparison chart -> {chart}")
 
     return results
 

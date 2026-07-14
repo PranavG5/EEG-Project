@@ -36,7 +36,7 @@ stratified cross-validation. Cross-subject columns are still to come._
 |---|---|---|
 | Band power + LDA | 0.73¹ | — |
 | CSP + LDA | 0.60¹ | — |
-| CSP + SVM | — | — |
+| CSP + SVM (RBF) | 0.64¹ | — |
 | EEGNet | — | — |
 
 ¹ Subject 1, runs 4+8+12 (45 trials, majority-class chance ≈ 0.51), 5-fold

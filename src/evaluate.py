@@ -113,3 +113,55 @@ def evaluate_subject_dependent(
         "report": report,
         "y_pred": y_pred,
     }
+
+
+def plot_accuracy_comparison(
+    results: dict[str, dict],
+    out_path: str,
+    chance: float | None = None,
+    title: str = "Subject-dependent accuracy",
+) -> str:
+    """Bar chart comparing methods' CV accuracy, with per-fold error bars.
+
+    Parameters
+    ----------
+    results
+        Mapping of method label -> result dict (as returned by
+        ``evaluate_subject_dependent``; must contain ``accuracy`` and
+        ``fold_accuracies``).
+    out_path
+        Where to save the figure.
+    chance
+        If given, a dashed horizontal line marks the majority-class chance level
+        so bars can be read against it.
+    title
+        Figure title.
+
+    Returns
+    -------
+    str
+        The path the figure was written to.
+    """
+    labels = list(results)
+    accs = [results[k]["accuracy"] for k in labels]
+    errs = [results[k]["fold_accuracies"].std() for k in labels]
+
+    fig, ax = plt.subplots(figsize=(1.6 * len(labels) + 2, 4.5))
+    bars = ax.bar(labels, accs, yerr=errs, capsize=5, color="tab:blue",
+                  alpha=0.85)
+    if chance is not None:
+        ax.axhline(chance, ls="--", color="gray",
+                   label=f"chance ({chance:.2f})")
+        ax.legend()
+    ax.set_ylabel("CV accuracy")
+    ax.set_ylim(0, 1)
+    ax.set_title(title)
+    for bar, acc in zip(bars, accs):
+        ax.text(bar.get_x() + bar.get_width() / 2, acc + 0.02,
+                f"{acc:.2f}", ha="center", va="bottom")
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)
+    return out_path

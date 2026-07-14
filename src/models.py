@@ -12,6 +12,7 @@ from __future__ import annotations
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 from features import make_csp
 
@@ -69,4 +70,40 @@ def make_csp_lda(n_components: int = 6) -> Pipeline:
     return make_pipeline(
         make_csp(n_components=n_components),
         LinearDiscriminantAnalysis(solver="lsqr", shrinkage="auto"),
+    )
+
+
+def make_csp_svm(n_components: int = 6) -> Pipeline:
+    """Build a CSP -> RBF-SVM pipeline.
+
+    Same CSP front end as :func:`make_csp_lda`, but the classifier is a
+    support-vector machine with a radial-basis-function kernel. The motivation
+    for swapping LDA for an RBF-SVM is to allow a *non-linear* decision boundary
+    in CSP-feature space: LDA can only draw a hyperplane, whereas the RBF kernel
+    can carve out curved boundaries, which can help if the two classes are not
+    linearly separable in the log-variance features.
+
+    A ``StandardScaler`` sits between CSP and the SVM because RBF-SVMs are highly
+    scale-sensitive: the kernel is a function of Euclidean distance, so features
+    on larger numeric scales would dominate. ``gamma='scale'`` and ``C=1.0`` are
+    the sensible scikit-learn defaults; these could be cross-validated later, but
+    are kept fixed here to avoid tuning on such a small dataset.
+
+    As with CSP+LDA, CSP is inside the pipeline so it is re-fit per training fold
+    under cross-validation.
+
+    Parameters
+    ----------
+    n_components
+        Number of CSP components (features) to retain.
+
+    Returns
+    -------
+    Pipeline
+        An unfitted scikit-learn pipeline (CSP -> StandardScaler -> RBF SVM).
+    """
+    return make_pipeline(
+        make_csp(n_components=n_components),
+        StandardScaler(),
+        SVC(kernel="rbf", C=1.0, gamma="scale"),
     )
