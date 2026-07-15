@@ -28,6 +28,20 @@ pip install -r requirements.txt
 python src/train.py      # runs the full pipeline end-to-end, writes figures
 ```
 
+## Live demo
+`src/demo.py` replays one subject's trials as if the BCI were decoding in real
+time — for each trial it prints the imagined hand, the decoder's guess, a
+confidence bar, and a running accuracy. It uses honest held-out (cross-validated)
+predictions and runs in seconds, so it is safe to run live.
+```bash
+python src/demo.py                              # subject 1, CSP + LDA
+python src/demo.py --subject 7 --method csp_lda  # a cleanly-decoding subject (~0.96)
+python src/demo.py --subject 9                   # a hard subject (~0.38) — decoding varies by person
+python src/demo.py --method eegnet --delay 0.3   # replay with the deep model, paced for effect
+```
+Per-subject accuracy varies a lot (subjects 2 and 7 decode well, 5 and 9 poorly)
+— that between-person spread is itself a real, presentable finding.
+
 ## Pipeline
 ```
 Raw EDF (64 ch, 160 Hz)
