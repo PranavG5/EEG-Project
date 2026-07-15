@@ -4,155 +4,203 @@ Run from the repository root:
 
     python src/train.py
 
-Milestone 2 pipeline: load subject 1 / run 4 -> preprocess (8-30 Hz band-pass +
-common average reference) -> epoch T1/T2 trials -> band-power features ->
-shrinkage LDA -> subject-dependent cross-validated accuracy + confusion matrix.
+Full pipeline over the first ``N_SUBJECTS`` PhysioNet EEGMMIDB subjects
+(imagery runs 4, 8, 12):
 
-Later milestones extend this driver with CSP features, an SVM, EEGNet, and
-cross-subject evaluation.
+    load + preprocess (8-30 Hz band-pass + common average reference) + epoch
+        -> four decoders:
+             1. band power + LDA        (simplest baseline)
+             2. CSP + LDA               (reference BCI pipeline)
+             3. CSP + RBF-SVM           (non-linear variant)
+             4. EEGNet                  (compact CNN, learned features)
+        -> two evaluation regimes:
+             A. subject-dependent  (within-subject k-fold CV, per subject,
+                                     averaged across subjects)
+             B. cross-subject      (leave-one-subject-out — the transfer test)
+        -> figures: accuracy comparison, confusion matrices, ERD/ERS topomap.
+
+Data downloads automatically via MNE on first run (cached under ~/mne_data).
+
+The whole run trains EEGNet many times on CPU, so it takes a while; progress is
+printed per method. Set ``N_SUBJECTS`` lower, or ``RUN_EEGNET = False``, for a
+quick classical-only pass.
 """
 
 from __future__ import annotations
 
-import glob
 import os
+import time
 
+import matplotlib
 import mne
 import numpy as np
 
-from evaluate import evaluate_subject_dependent, plot_accuracy_comparison
-from features import band_power
-from models import make_csp_lda, make_csp_svm, make_lda
-from preprocess import load_raw, make_epochs, preprocess_raw
+matplotlib.use("Agg")
+
+from evaluate import (  # noqa: E402
+    evaluate_cross_subject,
+    evaluate_subject_dependent_grouped,
+    plot_accuracy_comparison,
+    plot_erd_ers_topomap,
+    plot_subjdep_vs_crosssubj,
+)
+from features import band_power  # noqa: E402
+from models import make_csp_lda, make_csp_svm, make_eegnet, make_lda  # noqa: E402
+from preprocess import (  # noqa: E402
+    load_subject_epochs,
+    stack_subject_epochs,
+)
 
 FIGURES_DIR = "results/figures"
-DATA_DIR = "data"
-# Subject 1's imagined left/right-fist runs. Any of these present under data/
-# are loaded and concatenated, so dropping in more runs raises the trial count
-# with no code change.
-SUBJECT = 1
+
+# First N subjects of EEGMMIDB and their imagined left/right-fist runs. All are
+# 64-channel, 160 Hz recordings, so their epochs stack without resampling.
+N_SUBJECTS = 10
+SUBJECTS = tuple(range(1, N_SUBJECTS + 1))
 IMAGERY_RUNS = (4, 8, 12)
+SFREQ = 160.0
+
+# EEGNet is the expensive part (trained once per CV fold on CPU). Flip off for a
+# fast classical-only run.
+RUN_EEGNET = True
+
+# Human-readable labels for tables/plots.
+DISPLAY_NAMES = {
+    "bandpower_lda": "Band power\n+ LDA",
+    "csp_lda": "CSP + LDA",
+    "csp_svm": "CSP + SVM",
+    "eegnet": "EEGNet",
+}
 
 
-def find_local_edfs(subject: int, runs) -> list[str]:
-    """Return existing local EDF paths for the given subject/runs, if any.
+def build_methods() -> dict[str, dict]:
+    """Return the method registry: how to featurise and which estimator to use.
 
-    Looks for files named like ``S001R04.edf`` under ``data/`` (case-insensitive
-    on the extension). Returns an empty list if none are present, in which case
-    the caller falls back to MNE's downloader.
+    Each entry declares ``feature`` — either ``"epochs"`` (feed the raw 3-D epoch
+    tensor, used by CSP and EEGNet) or ``"bandpower"`` (the precomputed 2-D
+    per-channel log-power matrix) — and a zero-arg ``factory`` returning a fresh
+    unfitted estimator.
     """
-    found = []
-    for run in runs:
-        matches = glob.glob(os.path.join(DATA_DIR, f"S{subject:03d}R{run:02d}.edf"))
-        matches += glob.glob(os.path.join(DATA_DIR, f"S{subject:03d}R{run:02d}.EDF"))
-        found.extend(sorted(set(matches)))
-    return found
+    methods = {
+        "bandpower_lda": {"feature": "bandpower", "factory": make_lda,
+                          "name": "Band power + LDA"},
+        "csp_lda": {"feature": "epochs",
+                    "factory": lambda: make_csp_lda(n_components=6),
+                    "name": "CSP + LDA"},
+        "csp_svm": {"feature": "epochs",
+                    "factory": lambda: make_csp_svm(n_components=6),
+                    "name": "CSP + SVM (RBF)"},
+    }
+    if RUN_EEGNET:
+        methods["eegnet"] = {
+            "feature": "epochs",
+            "factory": lambda: make_eegnet(sfreq=SFREQ),
+            "name": "EEGNet",
+        }
+    return methods
 
 
-def epochs_to_xy(epochs) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    """Turn epochs into (labels y, class_names), with y as 0-based integers.
-
-    The class-name order is fixed by sorting the epoch ``event_id`` mapping by
-    its integer code, so label ``i`` always corresponds to ``class_names[i]``
-    (here 0 = left_fist, 1 = right_fist).
-    """
-    # name -> integer event code, e.g. {"left_fist": 2, "right_fist": 3}
-    name_by_code = {code: name for name, code in epochs.event_id.items()}
-    ordered_codes = sorted(name_by_code)
-    class_names = [name_by_code[c] for c in ordered_codes]
-    code_to_label = {code: i for i, code in enumerate(ordered_codes)}
-
-    y = np.array([code_to_label[c] for c in epochs.events[:, -1]])
-    return y, class_names
-
-
-def main() -> None:
-    # CSP re-fits every CV fold and logs covariance details at INFO; quiet it so
-    # the metrics summary is readable.
+def main() -> dict:
     mne.set_log_level("WARNING")
     os.makedirs(FIGURES_DIR, exist_ok=True)
+    t_start = time.time()
 
-    # --- Data: load, preprocess, epoch -------------------------------------
-    edf_paths = find_local_edfs(SUBJECT, IMAGERY_RUNS) or None
-    if edf_paths:
-        print(f"Loading subject {SUBJECT} from {len(edf_paths)} local run(s): "
-              f"{', '.join(os.path.basename(p) for p in edf_paths)}")
-    else:
-        print(f"Loading subject {SUBJECT}, runs {IMAGERY_RUNS} via MNE "
-              "downloader...")
-    raw = load_raw(subject=SUBJECT, runs=IMAGERY_RUNS, edf_paths=edf_paths)
-    preprocess_raw(raw)
-    epochs = make_epochs(raw)
+    # --- Load, preprocess, epoch every subject once ------------------------
+    print(f"Loading {len(SUBJECTS)} subjects {SUBJECTS}, runs {IMAGERY_RUNS} "
+          "(download on first run, cached thereafter)...")
+    epochs_list = [load_subject_epochs(s, runs=IMAGERY_RUNS) for s in SUBJECTS]
+    X_epochs, y, groups, class_names = stack_subject_epochs(epochs_list, SUBJECTS)
+    print(f"  dataset: {X_epochs.shape[0]} trials x {X_epochs.shape[1]} channels "
+          f"x {X_epochs.shape[2]} samples; classes {class_names}; "
+          f"balance {np.bincount(y).tolist()}")
 
-    y, class_names = epochs_to_xy(epochs)
-    results = {}
+    # Band-power features (2-D, label-free) computed per subject and stacked in
+    # the same trial order as the epoch tensor.
+    X_bandpower = np.concatenate([band_power(ep) for ep in epochs_list], axis=0)
 
-    # --- Method 1: band power + LDA ----------------------------------------
-    # 2-D features (n_trials, n_channels): precomputed, label-free, so safe to
-    # build once outside CV.
-    X_bandpower = band_power(epochs)
-    print(f"Band-power feature matrix: {X_bandpower.shape[0]} trials x "
-          f"{X_bandpower.shape[1]} channels (log band power, 8-30 Hz)")
-    results["bandpower_lda"] = evaluate_subject_dependent(
-        X_bandpower,
-        y,
-        make_lda(),
-        class_names=class_names,
-        method_name="Band power + LDA",
-        n_splits=5,
-        out_path=f"{FIGURES_DIR}/milestone2_confusion_bandpower_lda.png",
-    )
-
-    # --- Method 2: CSP + LDA (reference BCI pipeline) ----------------------
-    # CSP is supervised, so it lives inside the pipeline and is fit per-fold.
-    # Its input is the raw 3-D epoch data (n_trials, n_channels, n_times).
-    X_epochs = epochs.get_data(copy=False)
-    print(f"CSP input tensor: {X_epochs.shape[0]} trials x "
-          f"{X_epochs.shape[1]} channels x {X_epochs.shape[2]} samples")
-    results["csp_lda"] = evaluate_subject_dependent(
-        X_epochs,
-        y,
-        make_csp_lda(n_components=6),
-        class_names=class_names,
-        method_name="CSP + LDA",
-        n_splits=5,
-        out_path=f"{FIGURES_DIR}/milestone3_confusion_csp_lda.png",
-    )
-
-    # --- Method 3: CSP + RBF SVM -------------------------------------------
-    results["csp_svm"] = evaluate_subject_dependent(
-        X_epochs,
-        y,
-        make_csp_svm(n_components=6),
-        class_names=class_names,
-        method_name="CSP + SVM (RBF)",
-        n_splits=5,
-        out_path=f"{FIGURES_DIR}/milestone4_confusion_csp_svm.png",
-    )
-
-    # --- Summary comparison + bar chart ------------------------------------
-    display_names = {
-        "bandpower_lda": "Band power\n+ LDA",
-        "csp_lda": "CSP + LDA",
-        "csp_svm": "CSP + SVM",
-    }
-    print(f"\n=== Subject-dependent accuracy comparison "
-          f"(S{SUBJECT:03d}, {len(y)} trials) ===")
-    for name, res in results.items():
-        print(f"  {name:<16s}: {res['accuracy']:.3f} "
-              f"± {res['fold_accuracies'].std():.3f}")
-
+    features = {"epochs": X_epochs, "bandpower": X_bandpower}
+    methods = build_methods()
     chance = max(np.bincount(y)) / len(y)
-    chart = plot_accuracy_comparison(
-        {display_names.get(k, k): v for k, v in results.items()},
+
+    # --- Evaluation A: subject-dependent (within-subject k-fold) -----------
+    print("\n" + "=" * 70)
+    print("A. SUBJECT-DEPENDENT EVALUATION (5-fold CV within each subject)")
+    print("=" * 70)
+    results_sd: dict[str, dict] = {}
+    for key, spec in methods.items():
+        t0 = time.time()
+        results_sd[key] = evaluate_subject_dependent_grouped(
+            features[spec["feature"]], y, groups,
+            spec["factory"](), class_names=class_names,
+            method_name=spec["name"], n_splits=5,
+            out_path=f"{FIGURES_DIR}/subject_dependent_confusion_{key}.png",
+        )
+        print(f"  ({spec['name']} done in {time.time() - t0:.0f}s)")
+
+    # --- Evaluation B: cross-subject (leave-one-subject-out) ---------------
+    print("\n" + "=" * 70)
+    print("B. CROSS-SUBJECT EVALUATION (leave-one-subject-out)")
+    print("=" * 70)
+    results_cs: dict[str, dict] = {}
+    for key, spec in methods.items():
+        t0 = time.time()
+        results_cs[key] = evaluate_cross_subject(
+            features[spec["feature"]], y, groups,
+            spec["factory"](), class_names=class_names,
+            method_name=spec["name"],
+            out_path=f"{FIGURES_DIR}/cross_subject_confusion_{key}.png",
+        )
+        print(f"  ({spec['name']} done in {time.time() - t0:.0f}s)")
+
+    # --- Summary table -----------------------------------------------------
+    print("\n" + "=" * 70)
+    print(f"RESULTS SUMMARY ({len(SUBJECTS)} subjects, {len(y)} trials, "
+          f"chance {chance:.2f})")
+    print("=" * 70)
+    print(f"  {'method':<18s} {'subject-dependent':>20s} {'cross-subject':>18s}")
+    for key in methods:
+        sd = results_sd[key]
+        cs = results_cs[key]
+        print(f"  {key:<18s} "
+              f"{sd['accuracy']:.3f} ± {sd['fold_accuracies'].std():.3f}   "
+              f"    {cs['accuracy']:.3f} ± {cs['fold_accuracies'].std():.3f}")
+
+    # --- Figures -----------------------------------------------------------
+    plot_names = {k: DISPLAY_NAMES.get(k, k) for k in methods}
+
+    sd_chart = plot_accuracy_comparison(
+        {plot_names[k]: results_sd[k] for k in methods},
         out_path=f"{FIGURES_DIR}/accuracy_comparison_subject_dependent.png",
         chance=chance,
-        title=f"Subject-dependent accuracy (S{SUBJECT:03d}, {len(y)} trials, "
-              "5-fold CV)",
+        title=f"Subject-dependent accuracy ({len(SUBJECTS)} subjects, 5-fold CV)",
     )
-    print(f"Saved accuracy comparison chart -> {chart}")
+    cs_chart = plot_accuracy_comparison(
+        {plot_names[k]: results_cs[k] for k in methods},
+        out_path=f"{FIGURES_DIR}/accuracy_comparison_cross_subject.png",
+        chance=chance,
+        title=f"Cross-subject accuracy ({len(SUBJECTS)} subjects, LOSO)",
+    )
+    combo_chart = plot_subjdep_vs_crosssubj(
+        {plot_names[k]: results_sd[k] for k in methods},
+        {plot_names[k]: results_cs[k] for k in methods},
+        out_path=f"{FIGURES_DIR}/accuracy_comparison_combined.png",
+        chance=chance,
+        title=f"Subject-dependent vs cross-subject ({len(SUBJECTS)} subjects)",
+    )
 
-    return results
+    # Grand-average ERD/ERS topomap across all subjects (annotations are dropped
+    # on concatenation; only the class events are needed here).
+    combined_epochs = mne.concatenate_epochs(epochs_list, verbose="WARNING")
+    topomap = plot_erd_ers_topomap(
+        combined_epochs, out_path=f"{FIGURES_DIR}/erd_ers_topomap.png"
+    )
+
+    print(f"\nSaved figures:")
+    for path in (sd_chart, cs_chart, combo_chart, topomap):
+        print(f"  {path}")
+    print(f"\nTotal runtime: {time.time() - t_start:.0f}s")
+
+    return {"subject_dependent": results_sd, "cross_subject": results_cs}
 
 
 if __name__ == "__main__":

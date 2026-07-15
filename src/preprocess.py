@@ -28,6 +28,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import mne
+import numpy as np
 from mne.datasets import eegbci
 from mne.io import BaseRaw
 
@@ -191,6 +192,155 @@ def make_epochs(
         verbose="WARNING",
     )
     return epochs
+
+
+# --- Multi-subject loading -------------------------------------------------
+
+def load_subject_epochs(
+    subject: int,
+    runs: Sequence[int] = (4, 8, 12),
+    tmin: float = EPOCH_TMIN,
+    tmax: float = EPOCH_TMAX,
+) -> mne.Epochs:
+    """Load, preprocess, and epoch a single subject end-to-end.
+
+    Convenience wrapper that runs the full milestone-1 chain (download/load ->
+    band-pass + CAR -> epoch T1/T2) for one subject and returns ready-to-use
+    left/right imagery trials. Used to assemble the multi-subject dataset for
+    cross-subject evaluation, where each subject must be processed independently
+    (filtering and referencing are per-recording operations).
+
+    Parameters
+    ----------
+    subject
+        Subject id, 1-109.
+    runs
+        Imagery runs to concatenate (default: the three left/right fist runs).
+    tmin, tmax
+        Trial window in seconds relative to cue onset.
+
+    Returns
+    -------
+    Epochs
+        Epoched left/right imagery trials for this subject.
+    """
+    raw = load_raw(subject=subject, runs=runs)
+    preprocess_raw(raw)
+    return make_epochs(raw, tmin=tmin, tmax=tmax)
+
+
+def stack_subject_epochs(
+    epochs_list: Sequence[mne.Epochs],
+    subject_ids: Sequence[int],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+    """Stack per-subject epochs into one trials tensor with subject-id groups.
+
+    A parallel ``groups`` array records which subject each trial came from — this
+    is exactly what leave-one-subject-out cross-validation needs to guarantee no
+    subject appears in both train and test.
+
+    All subjects in EEGMMIDB share the same 64-channel montage and (for the
+    subjects used here) a 160 Hz sampling rate, so the per-subject epoch tensors
+    have matching shapes ``(n_trials_i, n_channels, n_times)`` and can be stacked
+    directly. A defensive check rejects any subject whose time-axis length
+    differs (a few EEGMMIDB subjects were recorded at 128 Hz), which would
+    otherwise corrupt the stacked array.
+
+    Parameters
+    ----------
+    epochs_list
+        Per-subject epoched trials, one :class:`mne.Epochs` per subject.
+    subject_ids
+        Subject id for each entry in ``epochs_list`` (same order/length).
+
+    Returns
+    -------
+    X : np.ndarray
+        Trials tensor, shape (n_trials_total, n_channels, n_times).
+    y : np.ndarray
+        Integer class labels (0 = left_fist, 1 = right_fist).
+    groups : np.ndarray
+        Subject id for each trial (same length as ``y``).
+    class_names : list[str]
+        Class names indexed by label value.
+    """
+    X_parts: list[np.ndarray] = []
+    y_parts: list[np.ndarray] = []
+    group_parts: list[np.ndarray] = []
+    class_names: list[str] | None = None
+    n_times_ref: int | None = None
+
+    for epochs, subject in zip(epochs_list, subject_ids):
+        y_sub, names = epochs_to_labels(epochs)
+        Xi = epochs.get_data(copy=False)
+
+        if n_times_ref is None:
+            n_times_ref = Xi.shape[2]
+            class_names = names
+        elif Xi.shape[2] != n_times_ref:
+            raise ValueError(
+                f"Subject {subject} has {Xi.shape[2]} time samples, expected "
+                f"{n_times_ref} — likely a different sampling rate; exclude it "
+                "or resample before stacking."
+            )
+
+        X_parts.append(Xi)
+        y_parts.append(y_sub)
+        group_parts.append(np.full(len(y_sub), subject, dtype=int))
+
+    X = np.concatenate(X_parts, axis=0)
+    y = np.concatenate(y_parts, axis=0)
+    groups = np.concatenate(group_parts, axis=0)
+    assert class_names is not None
+    return X, y, groups, class_names
+
+
+def load_multisubject_dataset(
+    subjects: Sequence[int],
+    runs: Sequence[int] = (4, 8, 12),
+    tmin: float = EPOCH_TMIN,
+    tmax: float = EPOCH_TMAX,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+    """Load, preprocess, epoch, and stack many subjects into one dataset.
+
+    Convenience wrapper: each subject is loaded and preprocessed independently
+    (filtering/referencing are per-recording), then all are stacked via
+    :func:`stack_subject_epochs`. Callers that also need the per-subject
+    :class:`mne.Epochs` (e.g. to build a grand-average topomap) should instead
+    load them with :func:`load_subject_epochs` and call
+    :func:`stack_subject_epochs` directly, to avoid loading twice.
+
+    Returns
+    -------
+    (X, y, groups, class_names)
+        See :func:`stack_subject_epochs`.
+    """
+    epochs_list = [
+        load_subject_epochs(s, runs=runs, tmin=tmin, tmax=tmax) for s in subjects
+    ]
+    return stack_subject_epochs(epochs_list, subjects)
+
+
+def epochs_to_labels(epochs: mne.Epochs) -> tuple[np.ndarray, list[str]]:
+    """Map epoch events to 0-based integer labels and their class names.
+
+    The class order is fixed by sorting ``event_id`` on its integer code, so
+    label ``i`` always maps to ``class_names[i]`` regardless of the arbitrary
+    codes MNE assigns per recording (here 0 = left_fist, 1 = right_fist).
+
+    Returns
+    -------
+    y : np.ndarray
+        Integer labels for each trial.
+    class_names : list[str]
+        Class names indexed by label value.
+    """
+    name_by_code = {code: name for name, code in epochs.event_id.items()}
+    ordered_codes = sorted(name_by_code)
+    class_names = [name_by_code[c] for c in ordered_codes]
+    code_to_label = {code: i for i, code in enumerate(ordered_codes)}
+    y = np.array([code_to_label[c] for c in epochs.events[:, -1]])
+    return y, class_names
 
 
 # --- Sanity checks / reporting ---------------------------------------------
