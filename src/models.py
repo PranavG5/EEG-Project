@@ -335,6 +335,10 @@ class EEGNetClassifier(BaseEstimator, ClassifierMixin):
         self.classes_ = np.unique(y)
         y_idx = np.searchsorted(self.classes_, y)
         n_channels, n_samples = X.shape[1], X.shape[2]
+        # Remember the (post-decimation) input shape so a saved model can be
+        # rebuilt for inference without re-seeing training data.
+        self.n_channels_ = n_channels
+        self.n_samples_ = n_samples
 
         # Per-channel standardisation stats from the (training) data.
         self.channel_mean_ = X.mean(axis=(0, 2), keepdims=True)
@@ -434,6 +438,56 @@ class EEGNetClassifier(BaseEstimator, ClassifierMixin):
     def predict(self, X: np.ndarray) -> np.ndarray:
         probs = self._forward_all(X)
         return self.classes_[probs.argmax(axis=1)]
+
+    # -- persistence --------------------------------------------------------
+
+    def save(self, path: str) -> None:
+        """Serialise a fitted decoder (weights + preprocessing stats) to ``path``.
+
+        Everything needed to reconstruct the model for inference is stored: the
+        constructor params, the learned network weights, the per-channel
+        standardisation statistics, and the input shape. This lets a trained
+        "brain decoder" persist as a single portable file rather than living only
+        in memory — useful for a UI that trains once and predicts many times, and
+        for later running inference on freshly recorded (physical) data.
+        """
+        torch.save(
+            {
+                "params": self.get_params(),
+                "state_dict": self.model_.state_dict(),
+                "classes_": self.classes_,
+                "channel_mean_": self.channel_mean_,
+                "channel_std_": self.channel_std_,
+                "n_channels_": self.n_channels_,
+                "n_samples_": self.n_samples_,
+            },
+            path,
+        )
+
+    @classmethod
+    def load(cls, path: str, device: str | None = None) -> "EEGNetClassifier":
+        """Reconstruct a fitted :class:`EEGNetClassifier` saved by :meth:`save`."""
+        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        obj = cls(**ckpt["params"])
+        if device is not None:
+            obj.device = device
+        obj.classes_ = ckpt["classes_"]
+        obj.channel_mean_ = ckpt["channel_mean_"]
+        obj.channel_std_ = ckpt["channel_std_"]
+        obj.n_channels_ = ckpt["n_channels_"]
+        obj.n_samples_ = ckpt["n_samples_"]
+        obj.model_ = EEGNet(
+            n_channels=obj.n_channels_,
+            n_samples=obj.n_samples_,
+            n_classes=len(obj.classes_),
+            f1=obj.f1,
+            depth_multiplier=obj.depth_multiplier,
+            kern_length=obj.kern_length,
+            dropout=obj.dropout,
+        ).to(obj._resolve_device())
+        obj.model_.load_state_dict(ckpt["state_dict"])
+        obj.model_.eval()
+        return obj
 
 
 def make_eegnet(sfreq: float = 160.0, decim: int = 2, **kwargs) -> EEGNetClassifier:

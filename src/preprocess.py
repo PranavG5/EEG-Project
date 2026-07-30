@@ -229,6 +229,36 @@ def load_subject_epochs(
     return make_epochs(raw, tmin=tmin, tmax=tmax)
 
 
+def epochs_from_edf_paths(
+    edf_paths: Sequence[str],
+    tmin: float = EPOCH_TMIN,
+    tmax: float = EPOCH_TMAX,
+) -> mne.Epochs:
+    """Load, preprocess, and epoch one or more local EDF files end-to-end.
+
+    The file-based counterpart to :func:`load_subject_epochs`: it runs the same
+    load -> band-pass + CAR -> epoch chain on explicitly supplied ``.edf`` files
+    instead of fetching a subject from PhysioNet. This is what the UI uses for
+    uploaded recordings. The files must carry T1/T2 (left/right fist) annotations
+    in the EEGMMIDB convention for the imagery classes to be found.
+
+    Parameters
+    ----------
+    edf_paths
+        Local ``.edf`` files to load and concatenate.
+    tmin, tmax
+        Trial window in seconds relative to cue onset.
+
+    Returns
+    -------
+    Epochs
+        Epoched left/right imagery trials.
+    """
+    raw = load_raw(edf_paths=list(edf_paths))
+    preprocess_raw(raw)
+    return make_epochs(raw, tmin=tmin, tmax=tmax)
+
+
 def stack_subject_epochs(
     epochs_list: Sequence[mne.Epochs],
     subject_ids: Sequence[int],
