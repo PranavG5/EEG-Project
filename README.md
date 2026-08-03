@@ -28,17 +28,36 @@ pip install -r requirements.txt
 python src/train.py      # runs the full pipeline end-to-end, writes figures
 ```
 
-## Interactive app (web UI)
-`src/app.py` is a Streamlit web app that wraps the whole decoder in a browser
-UI — pick a demo subject or **upload an EDF recording**, choose a decoder, and it
-calibrates the model and shows held-out accuracy, a trial-by-trial decode with
-confidence bars, a confusion matrix, and the ERD/ERS brain map. A trained EEGNet
-can be downloaded as a portable `.pt` file for later inference.
+## The app 🧠
+**NeuroDecode** is a local web app for the decoder — one command, one URL, clean
+UI. Pick a demo subject or **upload your own EDF recording**, choose a decoder,
+and it shows held-out accuracy, a trial-by-trial decode with confidence bars, a
+confusion matrix, per-class accuracy, and the ERD/ERS brain map.
+
 ```bash
-streamlit run src/app.py     # opens at http://localhost:8501
+pip install -r requirements.txt
+python run_app.py            # opens http://127.0.0.1:8000 in your browser
 ```
-(The decoder runs on MNE + PyTorch, so this is a Python app, not a static page;
-it can be deployed to Streamlit Community Cloud for a public URL.)
+
+A single FastAPI server serves both the REST API and the frontend, so there is
+no build step and nothing to deploy. The API is documented and browsable at
+`/docs`, which also makes the decoder scriptable:
+
+```bash
+curl -X POST localhost:8000/api/decode -F decoder=eegnet -F files=@my_session.edf
+```
+
+Architecture and a guide to adding decoders, panels and data sources:
+[`backend/README.md`](backend/README.md). The design is deliberately modular —
+adding a decoder is one registry entry and it appears in the UI automatically —
+so the app is ready for the planned physical-EEG phase.
+
+<details>
+<summary>Alternative: Streamlit version</summary>
+
+`src/app.py` is an earlier, simpler Streamlit UI with the same core features
+plus a trained-EEGNet download button: `streamlit run src/app.py`.
+</details>
 
 ## Live demo (terminal)
 `src/demo.py` replays one subject's trials as if the BCI were decoding in real
@@ -71,8 +90,8 @@ Raw EDF (64 ch, 160 Hz)
 Modules: `src/preprocess.py` (load/filter/reference/epoch, multi-subject
 assembly), `src/features.py` (band power, CSP), `src/models.py` (LDA, SVM,
 EEGNet + sklearn wrapper + save/load), `src/evaluate.py` (CV metrics, confusion
-matrices, topomap), `src/train.py` (full-study entry point), `src/app.py`
-(Streamlit web UI), `src/demo.py` (terminal live-decode demo).
+matrices, topomap), `src/train.py` (full-study entry point), `src/demo.py`
+(terminal live-decode demo), `backend/` + `run_app.py` (the NeuroDecode app).
 
 ### EEGNet
 A compact CNN (~2.7K parameters) that learns the pipeline end-to-end, with each

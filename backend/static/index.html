@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NeuroDecode — EEG Motor-Imagery BCI</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>" />
+</head>
+<body>
+  <div class="app">
+    <!-- ── Sidebar: controls ─────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">🧠</div>
+        <div>
+          <h1>NeuroDecode</h1>
+          <p class="brand-sub">EEG motor-imagery BCI</p>
+        </div>
+      </div>
+
+      <section class="panel">
+        <h2><span class="step">1</span> Data source</h2>
+        <div class="segmented" role="tablist">
+          <button class="seg-btn active" data-source="demo" role="tab">Demo subject</button>
+          <button class="seg-btn" data-source="upload" role="tab">Upload EDF</button>
+        </div>
+
+        <div id="source-demo" class="source-panel">
+          <label for="subject">Subject</label>
+          <select id="subject"></select>
+          <p class="hint">Decoding quality varies by person — subjects 7 and 2
+            are strong, 5 and 9 are hard. That spread is a real finding.</p>
+        </div>
+
+        <div id="source-upload" class="source-panel hidden">
+          <div id="dropzone" class="dropzone">
+            <input type="file" id="file-input" accept=".edf" multiple hidden />
+            <div class="dz-icon">⬆</div>
+            <p class="dz-title">Drop <code>.edf</code> files here</p>
+            <p class="dz-sub">or click to browse</p>
+          </div>
+          <ul id="file-list" class="file-list"></ul>
+          <p class="hint">EEGMMIDB-format recordings with T1/T2 (left/right)
+            annotations. Your own hardware recordings plug in here.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">2</span> Decoder</h2>
+        <div id="decoder-list" class="decoder-list"></div>
+      </section>
+
+      <button id="run-btn" class="run-btn">
+        <span class="run-label">Decode</span>
+      </button>
+      <p id="status-line" class="status-line"></p>
+
+      <footer class="side-foot">
+        <a href="/docs" target="_blank" rel="noreferrer">API docs ↗</a>
+        <span id="health-dot" class="dot" title="checking API..."></span>
+      </footer>
+    </aside>
+
+    <!-- ── Main: results ─────────────────────────────────────────────── -->
+    <main class="main">
+      <!-- Empty state -->
+      <section id="empty-state" class="empty-state">
+        <div class="empty-art">🧠</div>
+        <h2>Decode imagined movement from brain signals</h2>
+        <p>Pick a demo subject or upload your own EEG recording, choose a
+          decoder, and press <strong>Decode</strong>. The model is calibrated with
+          5-fold cross-validation, so every trial is predicted by a model that
+          never saw it.</p>
+      </section>
+
+      <!-- Loading state -->
+      <section id="loading-state" class="loading-state hidden">
+        <div class="pulse-brain">🧠</div>
+        <h2 id="loading-title">Calibrating decoder…</h2>
+        <p id="loading-sub">Filtering signal, extracting features, cross-validating.</p>
+        <div class="bar"><div class="bar-fill"></div></div>
+      </section>
+
+      <!-- Error state -->
+      <section id="error-state" class="error-state hidden">
+        <div class="err-icon">⚠</div>
+        <h2>Something went wrong</h2>
+        <p id="error-message"></p>
+      </section>
+
+      <!-- Results -->
+      <section id="results" class="results hidden">
+        <header class="results-head">
+          <div>
+            <h2 id="result-title">Results</h2>
+            <p id="result-sub" class="muted"></p>
+          </div>
+          <div id="accuracy-badge" class="acc-badge"></div>
+        </header>
+
+        <div class="stat-row" id="stat-row"></div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">
+              <h3>Trial-by-trial decode</h3>
+              <span class="muted small">out-of-fold predictions</span>
+            </div>
+            <div class="table-wrap">
+              <table class="trials">
+                <thead>
+                  <tr><th>#</th><th>Imagined</th><th>Decoded</th>
+                      <th>Confidence</th><th></th></tr>
+                </thead>
+                <tbody id="trial-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Confusion matrix</h3></div>
+            <div id="confusion" class="confusion"></div>
+            <div class="card-head" style="margin-top:1.25rem">
+              <h3>Per-class accuracy</h3>
+            </div>
+            <div id="class-bars" class="class-bars"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Where the signal lives — ERD/ERS brain map</h3>
+          </div>
+          <p class="muted small topo-caption">
+            Average mu/beta (8–30 Hz) power for each imagined hand and their
+            left−right contrast. Motor imagery suppresses this rhythm over the
+            <em>opposite</em> motor cortex, so the contrast is lateralised around
+            C3/C4 — the physical signature the decoder exploits.
+          </p>
+          <img id="topomap" class="topomap" alt="ERD/ERS topomap" />
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
