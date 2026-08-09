@@ -41,8 +41,18 @@ def main() -> None:
 
     try:
         import uvicorn
-    except ImportError:
-        sys.exit("uvicorn is not installed. Run:  pip install -r requirements.txt")
+    except ImportError as exc:
+        # Show the real import error: it is usually either a genuinely missing
+        # package or — most often on Windows — 'pip' having installed into a
+        # different Python than the one running this script.
+        sys.exit(
+            f"Could not import uvicorn: {exc}\n\n"
+            f"This interpreter is:\n  {sys.executable}\n\n"
+            "Install the dependencies into *this* interpreter with:\n"
+            "  python -m pip install -r requirements.txt\n"
+            "(using 'python -m pip' guarantees pip and python are the same "
+            "installation)"
+        )
 
     # uvicorn imports 'main:app' from the backend package directory.
     sys.path.insert(0, BACKEND_DIR)
