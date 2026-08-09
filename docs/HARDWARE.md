@@ -80,8 +80,14 @@ both an actual headband (easy to put on, no gel, friends can try it in turn)
 and correctly positioned (C3, C4, CP3, CP4). It is the shortest path from box
 to working decoder.
 
-**OpenBCI Ganglion or Cyton** if you would rather spend time than money, or if
-learning the hardware side is part of the point. You place the electrodes
+⚠️ **Check stock before planning around it.** As of this writing Neurosity's own
+store shows limited Crown inventory ("few Crowns left"). Prices and availability
+in this document were checked in August 2026 and will drift — confirm both
+before ordering, and treat OpenBCI as the fallback, since its boards are
+produced continuously and are not a single-product company's remaining stock.
+
+**OpenBCI Ganglion or Cyton** if you would rather spend time than money, if
+Crown stock has run out, or if learning the hardware side is part of the point. You place the electrodes
 yourself, which means you can build the ideal montage — and also means you can
 get it wrong, so tell the software where you actually put them:
 

@@ -124,8 +124,8 @@ def evaluate_per_subject(
     average spatial filter that suits nobody, which penalises exactly the
     methods (CSP) whose strength is per-subject adaptation.
 
-    Measured on 10 PhysioNet subjects, that distinction moves CSP+LDA from
-    60.7% (pooled) to 68.7% (per-subject) — the pooled number is not a harder
+    Measured on 10 PhysioNet subjects, the distinction moves CSP+LDA from
+    60.7% (pooled) to 66.7% (per-subject). The pooled number is not a harder
     version of the same question, it is a different and less relevant one,
     because a deployed BCI is always calibrated to one person.
 
