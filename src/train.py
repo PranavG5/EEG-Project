@@ -36,6 +36,7 @@ from .devices.channels import shared_channels
 from .devices.registry import DEVICE_PROFILES, get_profile
 from .evaluate import (
     evaluate_cross_subject,
+    evaluate_per_subject,
     evaluate_subject_dependent,
     plot_accuracy_comparison,
     plot_confusion,
@@ -212,13 +213,24 @@ def run_training(args: argparse.Namespace) -> int:
     pooled_x = np.concatenate([x for x, _ in per_subject.values()])
     pooled_y = np.concatenate([y for _, y in per_subject.values()])
 
-    print(f"\nEvaluating {len(model_names)} models on {len(pooled_y)} pooled trials")
+    print(
+        f"\nSubject-dependent: {len(model_names)} models, "
+        f"{len(per_subject)} subject(s), {len(pooled_y)} trials"
+    )
     print("-" * 78)
     for name in model_names:
         factory = lambda n=name: build_model(n)  # noqa: E731
-        result = evaluate_subject_dependent(
-            factory, pooled_x, pooled_y, model_name=name, n_splits=args.folds
-        )
+        if len(per_subject) > 1:
+            # Cross-validate inside each subject separately. Pooling everyone
+            # and running k-fold over the pool is a different (and, for a
+            # calibrated BCI, less relevant) question.
+            result = evaluate_per_subject(
+                factory, per_subject, model_name=name, n_splits=args.folds
+            )
+        else:
+            result = evaluate_subject_dependent(
+                factory, pooled_x, pooled_y, model_name=name, n_splits=args.folds
+            )
         results.append(result)
         print(result.summary())
 

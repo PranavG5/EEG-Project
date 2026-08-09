@@ -246,11 +246,17 @@ def cmd_live(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 
-def cmd_train(args: argparse.Namespace) -> int:
-    from .train import build_parser as train_parser
-    from .train import run_training
+def cmd_train(argv: list[str]) -> int:
+    """Hand the remaining arguments straight to the training parser.
 
-    return run_training(train_parser().parse_args(args.rest))
+    Dispatched before the top-level parser runs rather than through a
+    subparser: ``argparse.REMAINDER`` does not capture arguments that begin
+    with ``-``, so ``cli train --source recordings`` would otherwise be
+    rejected as an unrecognised option.
+    """
+    from .train import main as train_main
+
+    return train_main(argv)
 
 
 # --------------------------------------------------------------------------
@@ -306,16 +312,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_live.add_argument("--seconds", type=float, default=None)
     p_live.set_defaults(func=cmd_live)
 
-    p_train = sub.add_parser(
-        "train", help="Train/evaluate (see `python -m src.train --help`)"
+    # `train` is documented here for discoverability but intercepted in main().
+    sub.add_parser(
+        "train", add_help=False,
+        help="Train/evaluate (all options: `python -m src.train --help`)",
     )
-    p_train.add_argument("rest", nargs=argparse.REMAINDER)
-    p_train.set_defaults(func=cmd_train)
 
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "train":
+        return cmd_train(argv[1:])
     args = build_parser().parse_args(argv)
     return args.func(args)
 
