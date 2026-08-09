@@ -1,4 +1,17 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
+.ipynb_checkpoints/
+
+# Downloaded PhysioNet EDFs and your own headband recordings.
+# Recordings are personal biometric data — keep them out of git.
 data/
+*.edf
+
+# Trained model artifacts
+models/
+*.joblib
+
+# Generated figures (regenerate with `python -m src.train`)
+results/figures/
