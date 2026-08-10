@@ -139,6 +139,44 @@ DEVICE_PROFILES: dict[str, DeviceProfile] = {
             "motor-imagery placement, not a factory default."
         ),
     ),
+    "pieeg": DeviceProfile(
+        key="pieeg",
+        display_name="PiEEG (Raspberry Pi shield, 8ch)",
+        board_id_name="PIEEG_BOARD",
+        default_channels=("C3", "C4", "CP3", "CP4", "FC3", "FC4", "C5", "C6"),
+        sfreq=250.0,
+        electrodes_repositionable=True,
+        approx_price_usd="~$350 board + ~$60 Raspberry Pi + electrodes",
+        connection="Raspberry Pi GPIO (the Pi runs the software)",
+        notes=(
+            "Cheapest route to a real ADS1299 amplifier — the same converter chip as "
+            "OpenBCI's Cyton, at a third of the price. You supply the Pi, the "
+            "electrodes and the headwear, and you place every electrode yourself, so "
+            "the listed layout is the motor-imagery placement to aim for, not a "
+            "factory default. CAVEAT: the 8-channel board is discontinued and stock "
+            "is intermittent — check availability before planning around it. PiEEG-16 "
+            "(~$390) is the current product."
+        ),
+    ),
+    "diy": DeviceProfile(
+        key="diy",
+        display_name="Home-built rig (import recordings from any source)",
+        board_id_name="SYNTHETIC_BOARD",
+        default_channels=(),
+        sfreq=250.0,
+        electrodes_repositionable=True,
+        approx_price_usd="~$40-150 depending on channel count",
+        connection="whatever you built — import files rather than streaming live",
+        notes=(
+            "For rigs this project cannot drive directly (BioAmp EXG Pill on an "
+            "Arduino/ESP32, a bare ADS1299 breakout, anything home-etched). Record "
+            "with your own firmware, export CSV, and bring it in with "
+            "`cli import` plus a cue-times file. Everything downstream then works "
+            "identically. Two well-placed channels at C3 and C4 are enough to try "
+            "this task; the hard parts are amplifier noise and electrode contact, "
+            "not channel count."
+        ),
+    ),
     "muse2": DeviceProfile(
         key="muse2",
         display_name="Muse 2",

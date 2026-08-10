@@ -73,6 +73,52 @@ motor-imagery BCI. This is the most common self-deception in amateur BCI work.
 The project guards against it: `python -m src.cli record --device muse2`
 refuses to run without `--force`.
 
+### Budget options, and the DIY route
+
+Before comparing prices: **you need one device for the whole group, not one
+each.** Calibration is ~20 minutes per person, so a single headband serves five
+friends in an afternoon. A $625 board shared five ways is $125 each — and five
+cheap unsuitable headbands are worse than one good shared one in every respect.
+Divide the prices below by the number of people.
+
+| Option | Cost | Channels | Verdict |
+|---|---|---|---|
+| **OpenBCI Ganglion** + headband kit + dry combs | ~$1,025 total, or **~$625** board-only if you make your own headwear | 4 | **Safest budget buy.** In stock, BrainFlow-supported, electrodes go where you want them. |
+| **PiEEG** shield + Raspberry Pi | ~$350 + ~$60 Pi + electrodes | 8 | Cheapest real ADS1299 amplifier — same converter chip as the Cyton. ⚠️ **Discontinued and out of stock** at the time of writing; PiEEG-16 (~$390) is the current product. Check availability first. |
+| **Cerelog ESP-EEG** | "less than half a Cyton" (~$500?) | 8 | New ADS1299 board with BrainFlow support. Firmware is USB-only so far. Worth watching; too new to recommend blind. |
+| **DIY: BioAmp EXG Pill** + Arduino/ESP32 | ~$40–150 | 1–4 | The genuine make-it-yourself route. See below. |
+| Used OpenBCI on eBay | ~$300–700 | 4–8 | Real option. Verify the dongle is included — it is board-specific and annoying to source separately. |
+
+Prices checked August 2026 and will drift. Confirm before ordering.
+
+### The DIY route, honestly assessed
+
+You *can* build this. [BioAmp EXG Pill](https://store.upsidedownlabs.tech/product/bioamp-exg-pill/)
+is a small open-hardware biopotential amplifier (~$25–40 each) that feeds an
+Arduino, ESP32 or Pi Pico's ADC. Two of them at C3 and C4, with a shared
+reference on the mastoid, is enough to attempt this task — the contrast is a
+two-channel difference, so two channels is not a toy.
+
+What you are signing up for, stated plainly:
+
+- **You write the firmware and the recorder.** This project cannot stream from
+  your rig directly. You export CSV and use `cli import` with a cue-times file;
+  everything downstream then works identically. That path is tested.
+- **Your ADC is the weak link.** An Arduino Uno's 10-bit ADC is not adequate for
+  ~10 µV signals; you want at least the ESP32's 12-bit with oversampling, and
+  ideally an external 24-bit converter — at which point you have rebuilt a
+  Ganglion for a similar price and more effort.
+- **Mains isolation.** Run the microcontroller from a battery or a USB power
+  bank, never from a laptop that is plugged into a charger while someone is
+  wearing electrodes. This is the one corner not to cut.
+- **Expect a semester, not a weekend**, if nobody in the group has built
+  analog hardware before.
+
+The honest recommendation: if the *point* is learning hardware, build it. If the
+point is a working arm-imagery decoder for a club application, buy a Ganglion
+and spend the saved weeks on the decoding, which is where the interesting work
+is anyway.
+
 ### If you want my single recommendation
 
 **Neurosity Crown**, if the budget tolerates it — it is the only device that is
@@ -289,14 +335,21 @@ faster but require visual stimulation).
 
 ## 8. Budget
 
-| Item | Cost |
-|---|---|
-| Neurosity Crown (everything included) | ~$1,499 |
-| **or** g.tec Unicorn Hybrid Black | ~$1,000–1,300 |
-| **or** OpenBCI Cyton + Ultracortex Mark IV | ~$1,750 |
-| **or** OpenBCI Ganglion + headband kit + dry combs | ~$1,025 |
-| Conductive paste / gel (wet setups) | ~$25 |
-| Spare dry comb electrodes | ~$50 |
+Pick one row from the top block. Remember it is shared across the whole group,
+so divide by the number of people.
+
+| Item | Cost | Per person (group of 5) |
+|---|---|---|
+| Neurosity Crown (everything included) | ~$1,499 | ~$300 |
+| **or** OpenBCI Cyton + Ultracortex Mark IV | ~$1,750 | ~$350 |
+| **or** g.tec Unicorn Hybrid Black | ~$1,000–1,300 | ~$230 |
+| **or** OpenBCI Ganglion + headband kit + dry combs | ~$1,025 | ~$205 |
+| **or** OpenBCI Ganglion board only, DIY headwear | ~$625 | ~$125 |
+| **or** PiEEG + Raspberry Pi (if in stock) | ~$410 | ~$82 |
+| **or** BioAmp EXG Pill × 2 + ESP32 (build it) | ~$100 | ~$20 |
+| Conductive paste / gel (wet setups) | ~$25 | — |
+| Spare dry comb electrodes | ~$50 | — |
+| Alcohol wipes (sharing electrodes between people) | ~$5 | — |
 
 Everything on the software side is free and already in this repo.
 

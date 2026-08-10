@@ -51,11 +51,21 @@ Muse 2  [muse2]
 
 ---
 
-## Setup
+## Opening the app
 
 ```bash
 pip install -r requirements.txt
+python -m src.app
 ```
+
+Opens `http://localhost:8000`. Runs entirely on your machine on Python's
+standard library — no account, no server, nothing leaves the laptop. Five tabs,
+in the order you use them: **Hardware** (compare headsets, check signal quality)
+→ **Record** (full-screen cued session) → **Data** (upload your friends'
+recordings) → **Train** → **Live**.
+
+Everything the app does is also a CLI command; they share the same code. See
+[`docs/COLLECTING_DATA.md`](docs/COLLECTING_DATA.md) for the group workflow.
 
 PhysioNet data downloads automatically via MNE on first run. `brainflow` and
 `torch` are only needed for live hardware and EEGNet respectively; the classical
@@ -91,6 +101,29 @@ python -m src.cli record --device crown --task imagery   # ~20 min, 60 cued tria
 python -m src.cli train  --source recordings --save models/me.joblib
 python -m src.cli live   --device crown --model models/me.joblib
 ```
+
+### Collecting data as a group
+
+You need **one device for the whole group, not one each** — calibration is ~20
+minutes per person, so one headband serves five friends in an afternoon.
+
+```bash
+python -m src.cli export --out my_recordings.zip   # on your friend's laptop
+python -m src.cli import from_bob.zip              # on yours
+python -m src.cli list                             # who has contributed what
+```
+
+Recordings made with other software import too — OpenBCI GUI CSV, BrainFlow
+CSV, EDF — given a cue-times file:
+
+```bash
+python -m src.cli import raw.csv --subject dave --channels C3,C4,CP3,CP4 --labels cues.csv
+```
+
+`--channels` is the **position on the head in the file's column order**. The
+file says "EXG Channel 0"; only the person who placed the electrodes knows it
+was C3, and getting the order wrong trains on permuted electrodes while still
+reporting a believable accuracy.
 
 ```
 LEFT [-----------------#------] RIGHT   RIGHT   0.78
@@ -250,6 +283,7 @@ Two things that are results rather than bugs:
 
 ```
 src/
+├── app.py             # the local web app — `python -m src.app`
 ├── config.py          # sampling rates, bands, epoch windows, montages
 ├── preprocess.py      # loading, filtering, referencing, epoching (both sources)
 ├── features.py        # band power, CSP, wavelet energy, ERD
@@ -257,14 +291,18 @@ src/
 ├── train.py           # training & evaluation entry point
 ├── evaluate.py        # metrics, CV schemes, figures
 ├── acquire.py         # cued calibration recorder (Graz paradigm)
+├── ingest.py          # import friends' recordings; CSV/EDF/zip → native format
 ├── realtime.py        # sliding-window live decoder + model persistence
-├── cli.py             # devices / check / record / train / live
+├── cli.py             # app / devices / check / record / import / train / live
 └── devices/
     ├── base.py             # hardware-agnostic EEGSource interface
     ├── channels.py         # 10-05 name harmonisation, montage assessment
     ├── registry.py         # headset catalogue + suitability ratings
     └── brainflow_device.py # BrainFlow-backed live source
-docs/HARDWARE.md       # buying guide, setup, and how not to fool yourself
+docs/
+├── HARDWARE.md        # buying guide (incl. budget/DIY), setup, self-deception checks
+└── COLLECTING_DATA.md # opening the app, group workflow, privacy
+tests/                 # 49 tests, focused on the hardware boundary
 results/figures/
 ```
 
