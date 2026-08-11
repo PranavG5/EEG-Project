@@ -83,7 +83,7 @@ Divide the prices below by the number of people.
 
 | Option | Cost | Channels | Verdict |
 |---|---|---|---|
-| **OpenBCI Ganglion** + headband kit + dry combs | ~$1,025 total, or **~$625** board-only if you make your own headwear | 4 | **Safest budget buy.** In stock, BrainFlow-supported, electrodes go where you want them. |
+| **OpenBCI Ganglion** + dongle + gold cups + paste | **~$715** ($625 board + $20 dongle + $45 electrodes + $25 paste) | 4 | **Safest budget buy** — BrainFlow-supported, electrodes go where you want them. ⚠️ Currently **sold out** at OpenBCI. The board price does **not** include the mandatory dongle or any electrodes. See [GANGLION_QUICKSTART.md](GANGLION_QUICKSTART.md). |
 | **PiEEG** shield + Raspberry Pi | ~$350 + ~$60 Pi + electrodes | 8 | Cheapest real ADS1299 amplifier — same converter chip as the Cyton. ⚠️ **Discontinued and out of stock** at the time of writing; PiEEG-16 (~$390) is the current product. Check availability first. |
 | **Cerelog ESP-EEG** | "less than half a Cyton" (~$500?) | 8 | New ADS1299 board with BrainFlow support. Firmware is USB-only so far. Worth watching; too new to recommend blind. |
 | **DIY: BioAmp EXG Pill** + Arduino/ESP32 | ~$40–150 | 1–4 | The genuine make-it-yourself route. See below. |
@@ -343,8 +343,8 @@ so divide by the number of people.
 | Neurosity Crown (everything included) | ~$1,499 | ~$300 |
 | **or** OpenBCI Cyton + Ultracortex Mark IV | ~$1,750 | ~$350 |
 | **or** g.tec Unicorn Hybrid Black | ~$1,000–1,300 | ~$230 |
+| **or** OpenBCI Ganglion + dongle + gold cups + paste | ~$715 | ~$143 |
 | **or** OpenBCI Ganglion + headband kit + dry combs | ~$1,025 | ~$205 |
-| **or** OpenBCI Ganglion board only, DIY headwear | ~$625 | ~$125 |
 | **or** PiEEG + Raspberry Pi (if in stock) | ~$410 | ~$82 |
 | **or** BioAmp EXG Pill × 2 + ESP32 (build it) | ~$100 | ~$20 |
 | Conductive paste / gel (wet setups) | ~$25 | — |

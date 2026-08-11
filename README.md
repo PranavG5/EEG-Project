@@ -13,6 +13,10 @@ Author: Pranav Ganji
 > **Buying a headband?** Read [`docs/HARDWARE.md`](docs/HARDWARE.md) first. Which
 > device you pick determines whether this works at all — most consumer headbands
 > physically cannot see this signal.
+>
+> **Already have an OpenBCI Ganglion?** Go straight to
+> [`docs/GANGLION_QUICKSTART.md`](docs/GANGLION_QUICKSTART.md) — wiring, electrode
+> placement, and every command in order.
 
 ---
 

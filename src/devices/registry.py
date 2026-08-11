@@ -129,14 +129,16 @@ DEVICE_PROFILES: dict[str, DeviceProfile] = {
         default_channels=("C3", "C4", "CP3", "CP4"),
         sfreq=200.0,
         electrodes_repositionable=True,
-        approx_price_usd="~$625 board + headwear",
-        connection="Bluetooth LE dongle",
+        approx_price_usd="~$715 all-in ($625 board + $20 dongle + $70 electrodes/paste)",
+        connection="Bluetooth LE dongle (sold separately, mandatory)",
         notes=(
             "Cheapest route to electrodes you can place at C3/C4 yourself. Four "
             "channels is the practical minimum: CSP has almost nothing to work "
             "with, so expect band-power and simple Laplacian features to do as "
-            "well as anything fancier. Default layout listed here is the "
-            "motor-imagery placement, not a factory default."
+            "well as anything fancier. The board price includes neither the dongle "
+            "nor any electrodes. The layout listed here is the motor-imagery "
+            "placement to wire up, not a factory default — see "
+            "docs/GANGLION_QUICKSTART.md."
         ),
     ),
     "pieeg": DeviceProfile(
@@ -175,6 +177,24 @@ DEVICE_PROFILES: dict[str, DeviceProfile] = {
             "identically. Two well-placed channels at C3 and C4 are enough to try "
             "this task; the hard parts are amplifier noise and electrode contact, "
             "not channel count."
+        ),
+    ),
+    "ganglion_native": DeviceProfile(
+        key="ganglion_native",
+        display_name="OpenBCI Ganglion (4ch, no dongle — native Bluetooth)",
+        board_id_name="GANGLION_NATIVE_BOARD",
+        default_channels=("C3", "C4", "CP3", "CP4"),
+        sfreq=200.0,
+        electrodes_repositionable=True,
+        approx_price_usd="same board, saves the ~$20 dongle",
+        connection="your computer's built-in Bluetooth (needs --mac-address)",
+        notes=(
+            "Identical hardware to `ganglion`, connected through your laptop's own "
+            "Bluetooth instead of OpenBCI's USB dongle. Try this first if the dongle "
+            "is out of stock or you would rather not buy one; fall back to `ganglion` "
+            "if the connection proves flaky, which it can be on some Bluetooth stacks. "
+            "Needs the board's MAC address, printed on the board and discoverable "
+            "with any BLE scanner app."
         ),
     ),
     "muse2": DeviceProfile(
